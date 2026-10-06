@@ -30,6 +30,8 @@ const SPEED = 120
  * pixels to a column on the desktop app (95 columns came to about 1050px).
  */
 const PX_PER_COLUMN = 11
+/** Pixels kept free at the band's end for the close button. */
+const CLOSE_ROOM = 48
 const CHOMP_MS = 1200
 const BOUNCE_MS = 1000
 const HURT_MS = 2500
@@ -365,7 +367,8 @@ export const register: Register = on => {
     const { Box, Button } = $.ui.resolve(e)
     const { Svg } = $.ui.resolve(e) as { Svg: (props: SvgProps) => JSX.Element }
     const m = settle(await read($, motion))
-    const bar = barWidth(await read($, width), e.props.bodyColumns)
+    // Leave room at the end of the band for the close button.
+    const bar = barWidth(await read($, width), e.props.bodyColumns) - CLOSE_ROOM
 
     return (
       <Box width="100%" alignItems="center">
