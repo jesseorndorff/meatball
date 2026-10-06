@@ -35,12 +35,6 @@ const SPEED = 120
 const PX_PER_COLUMN = 11
 /** Pixels kept free at the band's end for the close button. */
 const CLOSE_ROOM = 48
-/**
- * Where the close button sits from the band content's top-right corner. The
- * desktop pads the band itself and clips anything drawn into that padding, so
- * the content's own corner is as far out as it can go.
- */
-const CLOSE_INSET = 0
 const CHOMP_MS = 1200
 const BOUNCE_MS = 1000
 const HURT_MS = 2500
@@ -517,20 +511,23 @@ export const register: Register = on => {
     }
 
     return (
-      <Box width="100%" flexGrow={1} alignItems="center" position="relative">
-        <Svg
-          source={stage(m, now, e.props.isWorking, bar, agentCount(await read($, agents), now))}
-          alt={describe(m)}
-          width={bar}
-          height={SIZE}
-        />
+      // One row holds him: left unsized, the desktop gives the band's content far more height than
+      // he needs. Heights count whole rows; pixels are refused.
+      <Box width="100%" height={1} alignItems="center">
         {/*
-          Pinned to the top-right corner of the band's content: the
-          desktop's own dismiss control sits on the band's edge and clips.
+          His bar is a guess from the band's columns, so it sits centered in
+          the room left of the close button: his home is the true middle, and
+          a guess too wide is trimmed evenly at both ends.
         */}
-        <Box position="absolute" top={CLOSE_INSET} right={CLOSE_INSET}>
-          <Button key="close" label="✕" plain dimColor onPress={() => putAway($)} />
+        <Box flexGrow={1} flexShrink={1} justifyContent="center" overflow="hidden">
+          <Svg
+            source={stage(m, now, e.props.isWorking, bar, agentCount(await read($, agents), now))}
+            alt={describe(m)}
+            width={bar}
+            height={SIZE}
+          />
         </Box>
+        <Button key="close" label="✕" plain dimColor onPress={() => putAway($)} />
       </Box>
     )
   })
