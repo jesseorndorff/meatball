@@ -44,3 +44,19 @@ test('he rolls end to end across the band and turns back', () => {
   expect(place(lap / 2, 80).column).toBe(80 - WIDTH)
   expect(place(lap * 0.75, 80).isReturning).toBe(true)
 })
+
+test('the new activities have terminal faces too', () => {
+  expect(say(face({ ...FRESH, mood: 'testing' }, false, false, 0))).toContain('°_°')
+  expect(say(face({ ...FRESH, pose: 'pass' }, false, false, 0))).toContain('✓')
+  expect(say(face({ ...FRESH, pose: 'fail' }, false, false, 0))).toContain('✗')
+  expect(say(face({ ...FRESH, mood: 'deliver' }, false, false, 0))).toContain('✉')
+  expect(say(face({ ...FRESH, pose: 'celebrate' }, false, false, 0))).toContain('⚑')
+})
+
+test('running agents trail behind him in the terminal', () => {
+  expect(say(face(FRESH, true, false, 0, 3)).startsWith('ooo ')).toBe(true)
+  expect(say(face(FRESH, true, true, 0, 2)).endsWith(' oo')).toBe(true)
+  for (const pose of ['pass', 'celebrate', 'chomp'] as const) {
+    expect(say(face({ ...FRESH, pose, fill: 'stuffed' }, true, false, 0, 4)).length).toBeLessThanOrEqual(WIDTH)
+  }
+})

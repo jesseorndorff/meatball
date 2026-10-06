@@ -67,3 +67,26 @@ test('he waits on you only while a permission prompt is up', async ($, on) => {
   await $.prompt.submit({ text: 'go ahead' })
   expect(await isAlert()).toBe(false)
 })
+
+const poseOf = async (desktop: { drawn: () => Promise<unknown> }) =>
+  /<svg data-fill="\w+" (data-[a-z]+="[^"]*")/.exec(JSON.stringify(await desktop.drawn()).replace(/\\"/g, '"'))?.[1]
+
+test('a test run: goggles while it runs, then a cheer or a groan', async ($, on) => {
+  mock.clock(on, { now: 1_000 })
+  on('ui.render', (t, e) => {
+    const { Box } = t.ui.resolve(e)
+    return <Box />
+  })
+  let seen: string | undefined
+  let desktop: { drawn: () => Promise<unknown> } | undefined
+  on('tool.call', async () => {
+    seen = desktop && (await poseOf(desktop))
+    return { result: { stdout: '', stderr: '' }, text: 'ok' }
+  })
+  const props = { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 100 }
+  desktop = await $.ui.mount({ plugin: 'meatball', surface: 'desktop', component: 'AbovePrompt', props })
+
+  await $.tool.call({ tool: 'Bash', input: { command: 'npm test' }, tool_use_id: 't1' })
+  expect(seen).toBe('data-mood="testing"')
+  expect(await poseOf(desktop)).toBe('data-mood="pass"')
+})

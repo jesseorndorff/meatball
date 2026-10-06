@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { Motion } from '../types'
-import { FRESH, barWidth, fillFor, halt, lapMs, look, position, roll, settle, spot, stage } from './register'
+import { FRESH, activityOf, agentCount, barWidth, fillFor, halt, lapMs, look, position, roll, settle, spot, stage } from './register'
 
 const STILL: Motion = FRESH
 
@@ -74,4 +74,36 @@ test('a failure, a command, and a quiet spell each have a face', () => {
 
 test('an older saved meatball picks up the new fields', () => {
   expect(settle({ rolledMs: 500 } as Partial<Motion>)).toEqual({ ...FRESH, rolledMs: 500 })
+})
+
+test('he knows a test run and a pull request when he sees one', () => {
+  for (const cmd of ['npm test', 'pnpm run test -- --watch=false', 'npx jest src', 'pytest -q', 'go test ./...', 'cd plugin && claude plugin test .']) {
+    expect(activityOf(cmd)).toBe('testing')
+  }
+  expect(activityOf('gh pr create --fill')).toBe('deliver')
+  for (const cmd of ['ls -la', 'git status', 'cat latest-test.log', 'echo contest']) {
+    expect(activityOf(cmd)).toBe('busy')
+  }
+})
+
+test('he counts the subagents seen lately, up to four', () => {
+  expect(agentCount({ a: 1_000, b: 2_000 }, 5_000)).toBe(2)
+  expect(agentCount({ a: 1_000, b: 30_000 }, 30_000)).toBe(1)
+  expect(agentCount({ a: 0, b: 0, c: 0, d: 0, e: 0 }, 1)).toBe(4)
+})
+
+test('each new activity has its look', () => {
+  expect(look({ ...STILL, mood: 'testing' }, false)).toBe('data-mood="testing" data-idle=""')
+  expect(look({ ...STILL, mood: 'deliver' }, false)).toBe('data-mood="deliver" data-idle=""')
+  expect(look({ ...STILL, pose: 'pass' }, false)).toBe('data-mood="pass" data-idle=""')
+  expect(look({ ...STILL, pose: 'fail', mood: 'testing' }, false)).toBe('data-mood="fail" data-idle=""')
+  expect(look({ ...STILL, pose: 'celebrate' }, false)).toBe('data-mood="celebrate" data-idle=""')
+})
+
+test('running agents roll behind him as a strip of minis', () => {
+  const svg = stage({ ...STILL, since: 0 }, 1_000, true, 1_000, 3)
+  expect(svg).toContain('data-agents="3"')
+  expect(svg).toContain('@keyframes mb-trail')
+  expect(stage(STILL, 0, false, 1_000, 0)).not.toContain('data-agents')
+  expect(svg.length).toBeLessThan(131_072)
 })

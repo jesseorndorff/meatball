@@ -1,8 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register, SvgProps } from 'claude-code'
 
-import type { Fill, Mood, Motion, Pose } from '../types'
-import { MEATBALL } from './meatball'
+import type { Agents, Fill, Mood, Motion, Pose } from '../types'
+import { AGENTS, MEATBALL } from './meatball'
 import * as terminal from './terminal'
 
 const isHidden = atom({ plugin: 'meatball', key: 'isHidden' } as const, false)
@@ -20,6 +20,7 @@ export const FRESH: Motion = {
 const motion = atom({ plugin: 'meatball', key: 'motion' } as const, FRESH)
 
 const width = atom({ plugin: 'meatball', key: 'width' } as const, null as number | null)
+const agents = atom({ plugin: 'meatball', key: 'agents' } as const, {} as Agents)
 
 /** His size on screen, in pixels: the sprite is 32×32 art scaled up crisply. */
 const SIZE = 48
@@ -50,6 +51,31 @@ const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const COMMAND_TOOLS = new Set(['Bash', 'PowerShell'])
 /** The tools that stop and ask you something: he waits on you. */
 const ASKING_TOOLS = new Set(['AskUserQuestion', 'ExitPlanMode'])
+
+const RESULT_MS = 2500
+const CELEBRATE_MS = 3500
+/** A subagent counts as running while it has used a tool this recently. */
+const AGENT_TTL_MS = 20_000
+/** The agents strip shows at most this many mini meatballs. */
+const MAX_AGENTS = 4
+
+/** Commands that run a test suite. */
+const TEST_COMMAND =
+  /(?:^|[\s;&|(])(?:(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?test|npx\s+(?:jest|vitest|mocha)|jest|vitest|pytest|mocha|rspec|phpunit|go\s+test|cargo\s+test|dotnet\s+test|make\s+test|claude\s+plugin\s+test)\b/
+/** Commands that open a pull request. */
+const PR_COMMAND = /(?:^|[\s;&|(])gh\s+pr\s+create\b/
+
+/** What a shell command is up to, for the mood he wears while it runs. */
+export function activityOf(command: string): 'testing' | 'deliver' | 'busy' {
+  if (PR_COMMAND.test(command)) return 'deliver'
+  if (TEST_COMMAND.test(command)) return 'testing'
+  return 'busy'
+}
+
+/** How many subagents are running: those seen using a tool in the last little while. */
+export function agentCount(seen: Agents, now: number) {
+  return Math.min(MAX_AGENTS, Object.values(seen).filter(at => now - at < AGENT_TTL_MS).length)
+}
 
 /** How round he is for a context window this full. */
 export function fillFor(percent: number | undefined): Fill {
@@ -89,12 +115,12 @@ export function spot(m: Motion, now: number, lap: number) {
 
 /** Which way of standing still or moving he shows, most urgent first. */
 export function look(m: Motion, isRolling: boolean) {
-  if (m.mood === 'alert') return 'data-mood="alert" data-idle=""'
-  if (m.pose === 'hurt') return 'data-mood="hurt" data-idle=""'
+  const mood = (name: string) => `data-mood="${name}" data-idle=""`
+  if (m.mood === 'alert') return mood('alert')
+  if (m.pose === 'hurt' || m.pose === 'fail' || m.pose === 'pass' || m.pose === 'celebrate') return mood(m.pose)
   if (m.pose === 'chomp') return 'data-chomp=""'
   if (m.pose === 'bounce') return 'data-mouth="open"'
-  if (m.mood === 'busy') return 'data-mood="busy" data-idle=""'
-  if (m.mood === 'sleep') return 'data-mood="sleep" data-idle=""'
+  if (m.mood !== 'none') return mood(m.mood)
   return isRolling ? 'data-roll=""' : 'data-idle=""'
 }
 
@@ -105,7 +131,7 @@ export function look(m: Motion, isRolling: boolean) {
  * spell. A redraw restarts the animations, so they begin part-way in (a
  * negative begin), on the spot where he was.
  */
-export function stage(m: Motion, now: number, isWorking: boolean, bar: number) {
+export function stage(m: Motion, now: number, isWorking: boolean, bar: number, helpers = 0) {
   const isRolling = isRollingNow(m, isWorking)
   // Our classes and animations are prefixed mb- so they can't collide with the sprite's own.
   const ball = MEATBALL.replace(
@@ -125,7 +151,11 @@ export function stage(m: Motion, now: number, isWorking: boolean, bar: number) {
     (m.pose === 'bounce'
       ? `.mb-hop{animation:mb-hop ${BOUNCE_MS / 1000}s ease-out 1}` +
         '@keyframes mb-hop{0%,55%,100%{transform:translateY(0)}30%{transform:translateY(-9px)}75%{transform:translateY(-5px)}}'
-      : '')
+      : '') +
+    // The agents strip trails behind him: to his left heading out, his right heading back.
+    `.mb-trail{animation:mb-trail ${dur} steps(1) infinite;animation-delay:${begin};` +
+    `animation-play-state:${isRolling ? 'running' : 'paused'}}` +
+    `@keyframes mb-trail{0%{transform:translateX(-${trailWidth(helpers) + 2}px)}50%{transform:translateX(${SIZE + 2}px)}}`
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${bar} ${SIZE}" ` +
@@ -136,7 +166,24 @@ export function stage(m: Motion, now: number, isWorking: boolean, bar: number) {
       ? `<animateTransform attributeName="transform" type="translate" ` +
         `values="0 0;${travel} 0;0 0" dur="${dur}" begin="${begin}" repeatCount="indefinite"/>`
       : '') +
-    `<g class="mb-face"><g class="mb-hop">${ball}</g></g></g></svg>`
+    `<g class="mb-face"><g class="mb-hop">${ball}</g></g>` +
+    (helpers > 0 ? `<g class="mb-trail">${trail(helpers)}</g>` : '') +
+    `</g></svg>`
+  )
+}
+
+/** One mini meatball is 11 of the strip's 44 units wide; the strip is drawn at his scale. */
+const STRIP_SCALE = SIZE / 32
+
+function trailWidth(helpers: number) {
+  return Math.round(helpers * 11 * STRIP_SCALE)
+}
+
+/** The agents strip showing `helpers` mini meatballs, at his scale. */
+function trail(helpers: number) {
+  return AGENTS.replace(
+    /<svg ([^>]*?)width="88" height="64"([^>]*?)data-agents="\d"/,
+    `<svg $1width="${44 * STRIP_SCALE}" height="${SIZE}"$2data-agents="${helpers}"`,
   )
 }
 
@@ -149,11 +196,11 @@ export function settle(m: Partial<Motion> | null | undefined): Motion {
  * Start or end something that lasts: he stops while it holds, and rolls on
  * from the same spot once it ends if the turn is still running.
  */
-async function feel($: Pick<EngineInterface, 'state' | 'clock'>, mood: Mood, from?: Mood) {
+async function feel($: Pick<EngineInterface, 'state' | 'clock'>, mood: Mood, from?: Mood | Mood[]) {
   const now = await $.clock.now()
   await update($, motion, stored => {
     const was = settle(stored)
-    if (from !== undefined && was.mood !== from) {
+    if (from !== undefined && ![from].flat().includes(was.mood)) {
       return was
     }
     const next = { ...halt(was, now), mood }
@@ -223,10 +270,28 @@ async function putAway($: Pick<EngineInterface, 'state'>) {
 function describe(m: Motion) {
   if (m.mood === 'alert') return 'The meatball is waiting on you'
   if (m.pose === 'hurt') return 'The meatball winces: something failed'
+  if (m.pose === 'fail') return 'The meatball groans: tests failed'
+  if (m.pose === 'pass') return 'The meatball cheers: tests passed'
+  if (m.pose === 'celebrate') return 'The meatball plants a flag: pull request opened'
   if (m.pose === 'chomp') return 'The meatball chomps an edit'
+  if (m.mood === 'testing') return 'The meatball watches the tests run'
+  if (m.mood === 'deliver') return 'The meatball carries a pull request'
   if (m.mood === 'busy') return 'The meatball watches a command run'
   if (m.mood === 'sleep') return 'The meatball is asleep'
   return 'A meatball rolling along'
+}
+
+/** Note a subagent at work, and redraw once it would age out of the count. */
+async function sawAgent($: Pick<EngineInterface, 'state' | 'clock' | 'ui'>, id: string) {
+  const now = await $.clock.now()
+  await update($, agents, seen => {
+    const fresh: Agents = { [id]: now }
+    for (const [other, at] of Object.entries(seen ?? {})) {
+      if (other !== id && now - at < AGENT_TTL_MS) fresh[other] = at
+    }
+    return fresh
+  })
+  $.clock.after(AGENT_TTL_MS + 250, () => $.ui.invalidate('ui.render'))
 }
 
 export const register: Register = on => {
@@ -308,28 +373,40 @@ export const register: Register = on => {
   })
 
   on('tool.call', async ($, e, next) => {
-    // A subagent's or background task's tool: no face of its own, but if it
-    // was what he was waiting on you for, it has now gone ahead.
+    // A subagent's or background task's tool: it adds a mini meatball to the
+    // trail, and if it was what he was waiting on you for, it has now gone ahead.
     if (e.agentId) {
+      await sawAgent($, e.agentId)
       const ran = await next(e)
+      await sawAgent($, e.agentId)
       await feel($, 'none', 'alert')
       return ran
     }
+
+    const command =
+      COMMAND_TOOLS.has(e.tool) && typeof (e.input as { command?: unknown }).command === 'string'
+        ? (e.input as { command: string }).command
+        : ''
+    const activity = COMMAND_TOOLS.has(e.tool) ? activityOf(command) : null
 
     if (EDIT_TOOLS.has(e.tool)) {
       await strike($, 'chomp', CHOMP_MS)
     } else if (ASKING_TOOLS.has(e.tool)) {
       await feel($, 'alert')
-    } else if (COMMAND_TOOLS.has(e.tool)) {
-      await feel($, 'busy')
+    } else if (activity) {
+      await feel($, activity)
     }
 
     const ran = await next(e)
+    const failed = 'isError' in ran && Boolean(ran.isError)
 
     // Whatever he was waiting on or watching is over.
-    await feel($, 'none', 'alert')
-    await feel($, 'none', 'busy')
-    if ('isError' in ran && ran.isError) {
+    await feel($, 'none', ['alert', 'busy', 'testing', 'deliver'])
+    if (activity === 'testing') {
+      await strike($, failed ? 'fail' : 'pass', RESULT_MS)
+    } else if (activity === 'deliver' && !failed) {
+      await strike($, 'celebrate', CELEBRATE_MS)
+    } else if (failed) {
       await strike($, 'hurt', HURT_MS)
     }
 
@@ -374,7 +451,7 @@ export const register: Register = on => {
       return (
         <Box>
           <Text>{' '.repeat(column)}</Text>
-          {terminal.face(m, isRolling, isReturning, now).map((piece, i) => (
+          {terminal.face(m, isRolling, isReturning, now, agentCount(await read($, agents), now)).map((piece, i) => (
             <Text key={`p${i}`} color={piece.color} bold>
               {piece.text}
             </Text>
@@ -388,13 +465,14 @@ export const register: Register = on => {
     const { Box, Button } = $.ui.resolve(e)
     const { Svg } = $.ui.resolve(e) as { Svg: (props: SvgProps) => JSX.Element }
     const m = settle(await read($, motion))
+    const now = await $.clock.now()
     // Leave room at the end of the band for the close button.
     const bar = barWidth(await read($, width), e.props.bodyColumns) - CLOSE_ROOM
 
     return (
       <Box width="100%" flexGrow={1} alignItems="center" position="relative">
         <Svg
-          source={stage(m, await $.clock.now(), e.props.isWorking, bar)}
+          source={stage(m, now, e.props.isWorking, bar, agentCount(await read($, agents), now))}
           alt={describe(m)}
           width={bar}
           height={SIZE}
