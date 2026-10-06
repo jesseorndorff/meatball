@@ -18,7 +18,17 @@ A pixel-art meatball that lives above the prompt in the Claude Code desktop app 
 Needs Claude Code 2.1.288 or newer. He draws in the desktop app only.
 
 ```bash
-claude plugin marketplace add ~/development/meatball
+claude plugin marketplace add jesseorndorff/meatball
+claude plugin install meatball@meatball
+```
+
+Then start a new session.
+
+To hack on him, clone the repo and add your local copy instead, so your changes load without pushing:
+
+```bash
+git clone https://github.com/jesseorndorff/meatball.git
+claude plugin marketplace add ./meatball
 claude plugin install meatball@meatball
 ```
 
@@ -41,3 +51,7 @@ claude plugin install meatball@meatball
 - `plugin/types/index.d.ts`: the state contract
 
 Run the tests with `claude plugin test plugin` and check the manifests with `claude plugin validate .`
+
+## License
+
+[MIT](LICENSE) © 2026 Jesse Orndorff
