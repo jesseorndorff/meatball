@@ -205,6 +205,12 @@ function keepTicking($: Pick<EngineInterface, 'clock' | 'ui'>) {
   ticker = () => timer.cancel()
 }
 
+/** Send him away until `/meatball` brings him back. */
+async function putAway($: Pick<EngineInterface, 'state'>) {
+  stopTicking()
+  await update($, isHidden, () => true)
+}
+
 /** What he is doing, for a screen reader. */
 function describe(m: Motion) {
   if (m.mood === 'alert') return 'The meatball is waiting on you'
@@ -331,7 +337,7 @@ export const register: Register = on => {
 
     // In a terminal he is one line of text: pixel art there is too big and striped.
     if (e.surface === 'terminal') {
-      const { Box, Text } = $.ui.resolve(e)
+      const { Box, Button, Text } = $.ui.resolve(e)
       const m = settle(await read($, motion))
       const now = await $.clock.now()
       const isRolling = isRollingNow(m, e.props.isWorking)
@@ -350,23 +356,26 @@ export const register: Register = on => {
               {piece.text}
             </Text>
           ))}
+          <Text> </Text>
+          <Button key="close" label="×" plain dimColor role="dismiss" onPress={() => putAway($)} />
         </Box>
       )
     }
 
-    const { Box } = $.ui.resolve(e)
+    const { Box, Button } = $.ui.resolve(e)
     const { Svg } = $.ui.resolve(e) as { Svg: (props: SvgProps) => JSX.Element }
     const m = settle(await read($, motion))
     const bar = barWidth(await read($, width), e.props.bodyColumns)
 
     return (
-      <Box width="100%">
+      <Box width="100%" alignItems="center">
         <Svg
           source={stage(m, await $.clock.now(), e.props.isWorking, bar)}
           alt={describe(m)}
           width={bar}
           height={SIZE}
         />
+        <Button key="close" label="Hide the meatball" role="dismiss" onPress={() => putAway($)} />
       </Box>
     )
   })

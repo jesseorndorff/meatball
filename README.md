@@ -38,7 +38,7 @@ claude plugin install meatball@meatball
 
 ## Commands
 
-- `/meatball` hides him or brings him back
+- `/meatball` hides him or brings him back (the ✕ beside him hides him too)
 - `/meatball width <px>` pins the bar's width; `/meatball width auto` fits it to the window again
 
 ## Updating after a change
