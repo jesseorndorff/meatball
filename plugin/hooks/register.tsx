@@ -3,6 +3,7 @@ import type { EngineInterface, Register, SvgProps } from 'claude-code'
 
 import type { Fill, Mood, Motion, Pose } from '../types'
 import { MEATBALL } from './meatball'
+import * as terminal from './terminal'
 
 const isHidden = atom({ plugin: 'meatball', key: 'isHidden' } as const, false)
 /** A meatball standing at the left end with nothing on his plate. */
@@ -97,7 +98,7 @@ export function look(m: Motion, isRolling: boolean) {
  * negative begin), on the spot where he was.
  */
 export function stage(m: Motion, now: number, isWorking: boolean, bar: number) {
-  const isRolling = m.pose === 'none' && m.mood === 'none' && (m.since !== null || isWorking)
+  const isRolling = isRollingNow(m, isWorking)
   // Our classes and animations are prefixed mb- so they can't collide with the sprite's own.
   const ball = MEATBALL.replace(
     /<svg ([^>]*?)width="64" height="64"/,
@@ -177,6 +178,57 @@ async function strike($: Pick<EngineInterface, 'state' | 'clock'>, pose: Pose, m
   })
 }
 
+/** Whether he is rolling right now: no pose or mood holding him, and a turn under way. */
+function isRollingNow(m: Motion, isWorking: boolean) {
+  return m.pose === 'none' && m.mood === 'none' && (m.since !== null || isWorking)
+}
+
+/** The terminal band's cells for this moment: where he is on the bar and how he looks. */
+async function terminalFrame($: Pick<EngineInterface, 'state' | 'clock'>, columns: number, isWorking: boolean) {
+  const m = settle(await read($, motion))
+  const now = await $.clock.now()
+  const isRolling = isRollingNow(m, isWorking)
+  const { column, isReturning } = terminal.place(position(m, now), columns)
+  return terminal.cells(terminal.paint(terminal.lookOf(m, isRolling), now / 1000), columns, column, isReturning)
+}
+
+/** How often the terminal band repaints, in milliseconds: about ten frames a second. */
+const TICK_MS = 100
+
+/**
+ * The terminal has no CSS animations, so a timer repaints his Raster in place.
+ * One timer for the band: a new site or width starts it over.
+ */
+let ticker: { site: string; columns: number; isWorking: boolean; stop: () => void } | null = null
+
+function stopTicking() {
+  ticker?.stop()
+  ticker = null
+}
+
+function keepTicking($: Pick<EngineInterface, 'state' | 'clock' | 'ui'>, site: string, columns: number, isWorking: boolean) {
+  if (ticker && ticker.site === site && ticker.columns === columns) {
+    ticker.isWorking = isWorking
+    return
+  }
+  stopTicking()
+  const current = { site, columns, isWorking, stop: () => {} }
+  const timer = $.clock.every(TICK_MS, () => {
+    void (async () => {
+      const painted = await $.ui.blit({
+        requestId: site,
+        key: 'meatball',
+        cells: await terminalFrame($, columns, current.isWorking),
+      })
+      if (painted.deny && ticker === current) {
+        stopTicking()
+      }
+    })()
+  })
+  current.stop = () => timer.cancel()
+  ticker = current
+}
+
 /** What he is doing, for a screen reader. */
 function describe(m: Motion) {
   if (m.mood === 'alert') return 'The meatball is waiting on you'
@@ -226,6 +278,9 @@ export const register: Register = on => {
     }
 
     const hidden = await update($, isHidden, was => !was)
+    if (hidden) {
+      stopTicking()
+    }
 
     return { text: hidden ? 'The meatball rolled away.' : 'The meatball is back!' }
   })
@@ -293,9 +348,29 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    // The terminal can't draw SVG; the meatball lives in the desktop app.
-    if (e.surface === 'terminal' || e.props.hasSurvey || (await read($, isHidden))) {
+    if (e.props.hasSurvey || (await read($, isHidden))) {
+      stopTicking()
       return next(e)
+    }
+
+    // The terminal can't draw SVG: he is painted in half-block cells instead.
+    if (e.surface === 'terminal') {
+      if (e.props.maxRows < terminal.ROWS) {
+        stopTicking()
+        return next(e)
+      }
+      const { Raster } = $.ui.resolve(e)
+      const columns = e.props.bodyColumns
+      keepTicking($, e.requestId, columns, e.props.isWorking)
+
+      return (
+        <Raster
+          key="meatball"
+          columns={columns}
+          rows={terminal.ROWS}
+          cells={await terminalFrame($, columns, e.props.isWorking)}
+        />
+      )
     }
 
     const { Box } = $.ui.resolve(e)
