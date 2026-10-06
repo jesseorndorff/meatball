@@ -2,6 +2,8 @@
 
 A pixel-art meatball that lives above the prompt in the Claude Code desktop app and shows what Claude is doing at a glance.
 
+![The meatball's poses: rolling, chomping, running a command, something failed, waiting on you, done, asleep, context filling, time to /compact](docs/poses.svg)
+
 | He… | When |
 |---|---|
 | rolls along the bar | Claude is thinking or reading |
