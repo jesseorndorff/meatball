@@ -1,0 +1,9 @@
+{
+  "name": "meatball",
+  "version": "1.0.0",
+  "description": "A pixel-art meatball above the prompt that shows what Claude is doing: rolls while it works, chomps on edits, watches commands, winces at errors, waits on you, hops when done, dozes when idle, and gets rounder as the context fills.",
+  "types": "./types/index.d.ts",
+  "author": {
+    "name": "Jesse Orndorff"
+  }
+}
