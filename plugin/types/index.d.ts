@@ -25,7 +25,7 @@ export type Motion = {
   pose: Pose
   mood: Mood
   fill: Fill
-  /** Milliseconds rolled before the current stretch. */
+  /** Milliseconds rolled before the current stretch, counted from the middle of the bar heading right. */
   rolledMs: number
   /** When the current stretch of rolling began, or null while he stands still. */
   since: number | null
@@ -35,6 +35,10 @@ export type Motion = {
   poseId: number
   /** Counts turns, so a sleep timer from a quiet spell that ended does nothing. */
   turnId: number
+  /** Where a turn left him (time rolled) as he heads home to the middle, or null once a turn starts. */
+  from: number | null
+  /** When he sets off home: just after the end-of-turn hop. */
+  homeAt: number
 }
 
 /** `/meatball width <px>` pins the bar's width; null works it out from the band's columns. */

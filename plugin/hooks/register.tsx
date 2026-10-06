@@ -6,7 +6,7 @@ import { AGENTS, MEATBALL } from './meatball'
 import * as terminal from './terminal'
 
 const isHidden = atom({ plugin: 'meatball', key: 'isHidden' } as const, false)
-/** A meatball standing at the left end with nothing on his plate. */
+/** A meatball standing at home in the middle of the bar with nothing on his plate. */
 export const FRESH: Motion = {
   pose: 'none',
   mood: 'none',
@@ -16,6 +16,8 @@ export const FRESH: Motion = {
   isTurn: false,
   poseId: 0,
   turnId: 0,
+  from: null,
+  homeAt: 0,
 }
 const motion = atom({ plugin: 'meatball', key: 'motion' } as const, FRESH)
 
@@ -92,9 +94,14 @@ export function roll(m: Motion, now: number): Motion {
   return m.since === null ? { ...m, since: now } : m
 }
 
-/** Time spent rolling so far: where he is along the bar. */
+/** Time spent rolling so far, from the middle: where he is along the bar. */
 export function position(m: Motion, now: number) {
   return m.rolledMs + (m.since === null ? 0 : now - m.since)
+}
+
+/** How far into a lap he is, for the animations: a lap starts at the left end, he starts in the middle. */
+function lapAt(m: Motion, now: number, lap: number) {
+  return (position(m, now) + lap / 4) % lap
 }
 
 /** The bar's width in pixels: pinned by `/meatball width`, else from the band's columns. */
@@ -109,8 +116,19 @@ export function lapMs(bar: number) {
 
 /** How far along the bar he is, 0 at the left end to 1 at the right, and which way he faces. */
 export function spot(m: Motion, now: number, lap: number) {
-  const phase = (position(m, now) % lap) / lap
-  return { along: phase < 0.5 ? phase * 2 : 2 - phase * 2, isReturning: phase >= 0.5 }
+  return terminal.alongAt(position(m, now), lap)
+}
+
+/**
+ * After a turn he hops where he stopped, then rolls home to the middle:
+ * where he is on the way, how long is left, and whether he heads left.
+ * Null while he is out working.
+ */
+export function walkHome(m: Motion, now: number, lap: number, travel: number) {
+  if (m.from === null) return null
+  const walk = terminal.homeward(terminal.alongAt(m.from, lap).along, travel, SPEED, now - m.homeAt)
+  const isWalking = m.pose === 'none' && m.mood === 'none' && now >= m.homeAt && walk.leftMs > 0
+  return { ...walk, isWalking }
 }
 
 /** Which way of standing still or moving he shows, most urgent first. */
@@ -132,30 +150,38 @@ export function look(m: Motion, isRolling: boolean) {
  * negative begin), on the spot where he was.
  */
 export function stage(m: Motion, now: number, isWorking: boolean, bar: number, helpers = 0) {
+  const lap = lapMs(bar)
+  const travel = bar - SIZE
+  const home = walkHome(m, now, lap, travel)
   const isRolling = isRollingNow(m, isWorking)
   // Our classes and animations are prefixed mb- so they can't collide with the sprite's own.
   const ball = MEATBALL.replace(
     /<svg ([^>]*?)width="64" height="64"/,
-    `<svg data-fill="${m.fill}" ${look(m, isRolling)} $1width="${SIZE}" height="${SIZE}"`,
+    `<svg data-fill="${m.fill}" ${look(m, isRolling || Boolean(home?.isWalking))} $1width="${SIZE}" height="${SIZE}"`,
   )
-  const lap = lapMs(bar)
-  const travel = bar - SIZE
-  const { along } = spot(m, now, lap)
+  const along = home ? home.along : spot(m, now, lap).along
   const dur = `${lap / 1000}s`
-  const begin = `-${(position(m, now) % lap) / 1000}s`
+  const begin = `-${lapAt(m, now, lap) / 1000}s`
+  const trailLeft = `translateX(-${trailWidth(helpers) + 2}px)`
+  const trailRight = `translateX(${SIZE + 2}px)`
   const css =
     '.mb-face{transform-box:fill-box;transform-origin:center;' +
-    `animation:mb-face ${dur} steps(1) infinite;animation-delay:${begin};` +
-    `animation-play-state:${isRolling ? 'running' : 'paused'}}` +
-    '@keyframes mb-face{0%{transform:scaleX(1)}50%{transform:scaleX(-1)}}' +
+    // On his way home he faces the middle; otherwise his facing follows the lap.
+    (home
+      ? `transform:scaleX(${home.isLeft ? -1 : 1})}`
+      : `animation:mb-face ${dur} steps(1) infinite;animation-delay:${begin};` +
+        `animation-play-state:${isRolling ? 'running' : 'paused'}}` +
+        '@keyframes mb-face{0%{transform:scaleX(1)}50%{transform:scaleX(-1)}}') +
     (m.pose === 'bounce'
       ? `.mb-hop{animation:mb-hop ${BOUNCE_MS / 1000}s ease-out 1}` +
         '@keyframes mb-hop{0%,55%,100%{transform:translateY(0)}30%{transform:translateY(-9px)}75%{transform:translateY(-5px)}}'
       : '') +
     // The agents strip trails behind him: to his left heading out, his right heading back.
-    `.mb-trail{animation:mb-trail ${dur} steps(1) infinite;animation-delay:${begin};` +
-    `animation-play-state:${isRolling ? 'running' : 'paused'}}` +
-    `@keyframes mb-trail{0%{transform:translateX(-${trailWidth(helpers) + 2}px)}50%{transform:translateX(${SIZE + 2}px)}}`
+    (home
+      ? `.mb-trail{transform:${home.isLeft ? trailRight : trailLeft}}`
+      : `.mb-trail{animation:mb-trail ${dur} steps(1) infinite;animation-delay:${begin};` +
+        `animation-play-state:${isRolling ? 'running' : 'paused'}}` +
+        `@keyframes mb-trail{0%{transform:${trailLeft}}50%{transform:${trailRight}}}`)
 
   return (
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${bar} ${SIZE}" ` +
@@ -165,7 +191,10 @@ export function stage(m: Motion, now: number, isWorking: boolean, bar: number, h
     (isRolling
       ? `<animateTransform attributeName="transform" type="translate" ` +
         `values="0 0;${travel} 0;0 0" dur="${dur}" begin="${begin}" repeatCount="indefinite"/>`
-      : '') +
+      : home?.isWalking
+        ? `<animateTransform attributeName="transform" type="translate" ` +
+          `values="${(along * travel).toFixed(1)} 0;${(travel / 2).toFixed(1)} 0" dur="${home.leftMs / 1000}s" fill="freeze"/>`
+        : '') +
     `<g class="mb-face"><g class="mb-hop">${ball}</g></g>` +
     (helpers > 0 ? `<g class="mb-trail">${trail(helpers)}</g>` : '') +
     `</g></svg>`
@@ -233,9 +262,9 @@ async function strike($: Pick<EngineInterface, 'state' | 'clock'>, pose: Pose, m
   })
 }
 
-/** Whether he is rolling right now: no pose or mood holding him, and a turn under way. */
+/** Whether he is rolling laps right now: no pose or mood holding him, and a turn under way, not on his way home. */
 function isRollingNow(m: Motion, isWorking: boolean) {
-  return m.pose === 'none' && m.mood === 'none' && (m.since !== null || isWorking)
+  return m.pose === 'none' && m.mood === 'none' && m.from === null && (m.since !== null || isWorking)
 }
 
 /** How often the terminal line repaints while he moves, in milliseconds. */
@@ -301,13 +330,15 @@ export const register: Register = on => {
       name: 'meatball',
       description: 'Show or hide the meatball; /meatball width <px> or auto sets his bar',
     })
-    // A reload starts him over where he stood, with nothing left mid-pose.
+    // A reload starts him over at home in the middle, with nothing left mid-pose.
     const { context } = await $.session.usage()
     await update($, motion, stored => ({
       ...settle(stored),
       pose: 'none',
       mood: 'none',
+      rolledMs: 0,
       since: null,
+      from: null,
       fill: fillFor(context.percent),
     }))
 
@@ -344,7 +375,8 @@ export const register: Register = on => {
     const now = await $.clock.now()
     await update($, motion, stored => {
       const was = settle(stored)
-      const awake = { ...was, isTurn: true, turnId: was.turnId + 1 }
+      // He sets out from home (rolledMs 0, the middle), even if still on his way there.
+      const awake = { ...was, isTurn: true, turnId: was.turnId + 1, from: null }
       return roll(was.mood === 'sleep' ? { ...awake, mood: 'none' } : awake, now)
     })
 
@@ -415,7 +447,14 @@ export const register: Register = on => {
   })
 
   on('turn.complete', async ($, e, next) => {
-    const done = await update($, motion, stored => ({ ...settle(stored), isTurn: false, mood: 'none' }))
+    // He hops where he stopped, then rolls home to the middle.
+    const now = await $.clock.now()
+    const done = await update($, motion, stored => {
+      const was = { ...settle(stored), isTurn: false, mood: 'none' as const }
+      return was.from !== null
+        ? was
+        : { ...was, from: position(was, now), homeAt: now + BOUNCE_MS, rolledMs: 0, since: null }
+    })
     await strike($, 'bounce', BOUNCE_MS)
     // Nothing for a while and he dozes off where he stands.
     $.clock.after(SLEEP_MS, () => {
@@ -441,8 +480,10 @@ export const register: Register = on => {
       const { Box, Button, Text } = $.ui.resolve(e)
       const m = settle(await read($, motion))
       const now = await $.clock.now()
-      const isRolling = isRollingNow(m, e.props.isWorking)
-      const { column, isReturning } = terminal.place(position(m, now), e.props.bodyColumns)
+      const home = m.from === null ? null : terminal.placeHome(m.from, e.props.bodyColumns, now - m.homeAt)
+      const isWalking = Boolean(home?.isWalking) && m.pose === 'none' && m.mood === 'none'
+      const isRolling = isRollingNow(m, e.props.isWorking) || isWalking
+      const { column, isReturning } = home ?? terminal.place(position(m, now), e.props.bodyColumns)
       if (terminal.isMoving(m, isRolling)) {
         keepTicking($)
       } else {
@@ -469,6 +510,11 @@ export const register: Register = on => {
     const now = await $.clock.now()
     // Leave room at the end of the band for the close button.
     const bar = barWidth(await read($, width), e.props.bodyColumns) - CLOSE_ROOM
+    // Once he is home, draw him again standing still.
+    const home = walkHome(m, now, lapMs(bar), bar - SIZE)
+    if (home?.isWalking) {
+      $.clock.after(home.leftMs + 50, () => $.ui.invalidate('ui.render'))
+    }
 
     return (
       <Box width="100%" flexGrow={1} alignItems="center" position="relative">

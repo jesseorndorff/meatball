@@ -1,6 +1,6 @@
 {
   "name": "meatball",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "A pixel-art meatball above the prompt, in the desktop app and the terminal, that shows what Claude is doing: rolls while it works, chomps on edits, watches commands, puts on goggles for tests and cheers or groans at the results, carries out pull requests, brings mini meatballs along for subagents, winces at errors, waits on you, hops when done, dozes when idle, and gets rounder as the context fills.",
   "types": "./types/index.d.ts",
   "author": {

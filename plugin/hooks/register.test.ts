@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import type { Motion } from '../types'
-import { FRESH, activityOf, agentCount, barWidth, fillFor, halt, lapMs, look, position, roll, settle, spot, stage } from './register'
+import { FRESH, activityOf, agentCount, barWidth, fillFor, halt, lapMs, look, position, roll, settle, spot, stage, walkHome } from './register'
 
 const STILL: Motion = FRESH
 
@@ -15,7 +15,8 @@ test('he keeps his place along the bar across stops', () => {
 test('rolling picks up where he left off', () => {
   const svg = stage({ ...STILL, rolledMs: 1_500, since: 0 }, 1_000, true, 1_000)
   expect(svg).toContain('data-roll=""')
-  expect(svg).toContain('begin="-2.5s"')
+  // A lap's animations start at the left end; he started a quarter-lap in, in the middle.
+  expect(svg).toContain(`begin="-${(2_500 + lapMs(1_000) / 4) / 1000}s"`)
   expect(svg).toContain('animation-play-state:running')
   expect(svg).toContain('viewBox="0 0 1000 48"')
 })
@@ -43,9 +44,39 @@ test('waiting, he bobs where he stopped', () => {
 test('he spans the whole bar at a steady pace', () => {
   const lap = lapMs(1_000)
   expect(lap).toBe(Math.round((952 * 2 * 1000) / 120))
-  expect(spot(STILL, 0, lap).along).toBe(0)
-  expect(spot({ ...STILL, rolledMs: lap / 2 }, 0, lap).along).toBe(1)
-  expect(stage({ ...STILL, rolledMs: lap / 2 }, 0, false, 1_000)).toContain('translate(952.0 0)')
+  expect(spot(STILL, 0, lap).along).toBe(0.5)
+  expect(spot({ ...STILL, rolledMs: lap / 4 }, 0, lap).along).toBe(1)
+  expect(spot({ ...STILL, rolledMs: (lap * 3) / 4 }, 0, lap).along).toBe(0)
+  expect(stage({ ...STILL, rolledMs: lap / 4 }, 0, false, 1_000)).toContain('translate(952.0 0)')
+})
+
+test('he starts at home in the middle of the bar', () => {
+  expect(stage(STILL, 0, false, 1_000)).toContain('translate(476.0 0)')
+})
+
+test('after a turn he hops where he stopped, then rolls home to the middle', () => {
+  const lap = lapMs(1_000)
+  // A turn left him at the right end; he hops there until 1s.
+  const left: Motion = { ...STILL, from: lap / 4, homeAt: 1_000 }
+  const hopping = stage({ ...left, pose: 'bounce' }, 500, false, 1_000)
+  expect(hopping).toContain('translate(952.0 0)')
+  expect(hopping).not.toContain('<animateTransform')
+
+  // Then he rolls back, facing left: 476px at 120px a second.
+  const walking = stage(left, 1_000, false, 1_000)
+  expect(walking).toContain('data-roll=""')
+  expect(walking).toContain('values="952.0 0;476.0 0"')
+  expect(walking).toContain('dur="3.966')
+  expect(walking).toContain('scaleX(-1)')
+  // Two seconds in he has covered 240px of the 476.
+  expect(Math.round((walkHome(left, 3_000, lap, 952)?.along ?? 0) * 952)).toBe(952 - 240)
+
+  // And once home he stands still in the middle.
+  const home = stage(left, 10_000, false, 1_000)
+  expect(home).toContain('translate(476.0 0)')
+  expect(home).toContain('data-idle=""')
+  expect(home).not.toContain('<animateTransform')
+  expect(walkHome(left, 10_000, lap, 952)?.isWalking).toBe(false)
 })
 
 test('the bar follows the band, unless pinned', () => {

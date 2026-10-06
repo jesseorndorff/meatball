@@ -77,10 +77,32 @@ export function lapMs(columns: number) {
   return Math.max(1, Math.round(((columns - WIDTH) * 2 * 1000) / SPEED))
 }
 
+/** How far along a bar he is, 0 to 1, after rolling `rolledMs` from the middle on a lap this long. */
+export function alongAt(rolledMs: number, lap: number) {
+  const p = ((rolledMs + lap / 4) % lap) / lap
+  return { along: p < 0.5 ? p * 2 : 2 - p * 2, isReturning: p >= 0.5 }
+}
+
+/**
+ * His way home to the middle from `from` (0 to 1 along a bar `span` units
+ * long) at `speed` units a second, `elapsedMs` after he set off: where he is,
+ * how long is left, and whether he heads left.
+ */
+export function homeward(from: number, span: number, speed: number, elapsedMs: number) {
+  const ms = (Math.abs(0.5 - from) * span * 1000) / speed
+  const t = ms === 0 ? 1 : Math.min(1, Math.max(0, elapsedMs / ms))
+  return { along: from + (0.5 - from) * t, leftMs: ms - Math.max(0, Math.min(ms, elapsedMs)), isLeft: from > 0.5 }
+}
+
 /** Which column he starts at, and whether he is heading back to the left. */
 export function place(rolledMs: number, columns: number) {
-  const lap = lapMs(columns)
-  const p = (rolledMs % lap) / lap
-  const along = p < 0.5 ? p * 2 : 2 - p * 2
-  return { column: Math.round(along * Math.max(0, columns - WIDTH)), isReturning: p >= 0.5 }
+  const { along, isReturning } = alongAt(rolledMs, lapMs(columns))
+  return { column: Math.round(along * Math.max(0, columns - WIDTH)), isReturning }
+}
+
+/** Where he is on his way home after a turn, `sinceHome` ms after he set off (negative while he hops). */
+export function placeHome(from: number, columns: number, sinceHome: number) {
+  const span = Math.max(0, columns - WIDTH)
+  const walk = homeward(alongAt(from, lapMs(columns)).along, span, SPEED, sinceHome)
+  return { column: Math.round(walk.along * span), isReturning: walk.isLeft, isWalking: sinceHome >= 0 && walk.leftMs > 0 }
 }

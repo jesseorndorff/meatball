@@ -1,7 +1,7 @@
 import { expect, test } from 'claude-code/testing'
 
 import { FRESH } from './register'
-import { WIDTH, face, isMoving, place } from './terminal'
+import { WIDTH, face, isMoving, place, placeHome } from './terminal'
 
 const say = (pieces: { text: string }[]) => pieces.map(p => p.text).join('')
 
@@ -39,10 +39,20 @@ test('he only asks for repaints while something moves', () => {
 })
 
 test('he rolls end to end across the band and turns back', () => {
-  expect(place(0, 80)).toEqual({ column: 0, isReturning: false })
+  expect(place(0, 80)).toEqual({ column: (80 - WIDTH) / 2, isReturning: false })
   const lap = ((80 - WIDTH) * 2 * 1000) / 12
-  expect(place(lap / 2, 80).column).toBe(80 - WIDTH)
-  expect(place(lap * 0.75, 80).isReturning).toBe(true)
+  expect(place(lap / 4, 80).column).toBe(80 - WIDTH)
+  expect(place(lap / 2, 80).isReturning).toBe(true)
+  expect(place((lap * 3) / 4, 80).column).toBe(0)
+})
+
+test('after a turn he rolls home to the middle of the band', () => {
+  const lap = ((80 - WIDTH) * 2 * 1000) / 12
+  // Left at the far end: 32 columns home at 12 a second.
+  expect(placeHome(lap / 4, 80, -500)).toEqual({ column: 64, isReturning: true, isWalking: false })
+  expect(placeHome(lap / 4, 80, 1_000).column).toBe(52)
+  expect(placeHome(lap / 4, 80, 1_000).isWalking).toBe(true)
+  expect(placeHome(lap / 4, 80, 10_000)).toEqual({ column: 32, isReturning: true, isWalking: false })
 })
 
 test('the new activities have terminal faces too', () => {
