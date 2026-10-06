@@ -36,6 +36,16 @@ claude plugin marketplace add ./meatball
 claude plugin install meatball@meatball
 ```
 
+## Does he cost tokens?
+
+No. `claude plugin details meatball@meatball` reports **~0 tokens** added to every session, and nothing he does later spends any:
+
+- He never calls the model. He only listens to events Claude Code already raises (a tool starting, a turn ending, a permission prompt, context measurements) and redraws himself.
+- He adds nothing to Claude's prompt: no instructions, skills or tools, and he passes prompts and tool results through untouched.
+- "Getting rounder" reads the context figures Claude Code already tracks, which is free.
+
+His only cost is a little local work: a few small state updates per event and, in a terminal, about eight redraws a second while he's moving.
+
 ## Commands
 
 - `/meatball` hides him or brings him back (the ✕ beside him hides him too)
