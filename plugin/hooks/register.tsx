@@ -286,19 +286,34 @@ export const register: Register = on => {
     return next(e)
   })
 
-  // A tool that needs your say-so: he stops and waits on you.
-  on('tool.check', async ($, e, next) => {
-    const verdict = await next(e)
-    if (verdict.decision === 'ask') {
-      await feel($, 'alert')
-    }
+  // A permission prompt is on screen: he stops and waits on you. (Not every
+  // "ask" verdict becomes a prompt: in auto mode a classifier settles most.)
+  on('classic.PermissionRequest', async ($, e, next) => {
+    await feel($, 'alert')
 
-    return verdict
+    return next(e)
+  })
+
+  on('classic.PermissionDenied', async ($, e, next) => {
+    await feel($, 'none', 'alert')
+
+    return next(e)
+  })
+
+  // You answered by typing: whatever he was waiting on is over.
+  on('prompt.submit', async ($, e, next) => {
+    await feel($, 'none', 'alert')
+
+    return next(e)
   })
 
   on('tool.call', async ($, e, next) => {
+    // A subagent's or background task's tool: no face of its own, but if it
+    // was what he was waiting on you for, it has now gone ahead.
     if (e.agentId) {
-      return next(e)
+      const ran = await next(e)
+      await feel($, 'none', 'alert')
+      return ran
     }
 
     if (EDIT_TOOLS.has(e.tool)) {

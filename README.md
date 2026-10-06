@@ -12,7 +12,7 @@ A pixel-art meatball that lives above the prompt in Claude Code, in the desktop 
 | chomps | Claude edits a file |
 | stands with a focused face | a command is running |
 | winces and shakes | a tool fails |
-| hops and blinks | Claude is waiting on you (permission, question, plan approval) |
+| hops and blinks | Claude is waiting on you: a permission prompt on screen, a question, or a plan to approve |
 | does a happy hop | the turn is done |
 | dozes off | nothing has happened for 5 minutes |
 | gets rounder | the context window passes 50%, then 80% (time to `/compact`) |
