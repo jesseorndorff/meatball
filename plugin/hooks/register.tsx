@@ -359,7 +359,7 @@ export const register: Register = on => {
             </Text>
           ))}
           <Text> </Text>
-          <Button key="close" label="×" plain dimColor role="dismiss" onPress={() => putAway($)} />
+          <Button key="close" label="×" plain dimColor onPress={() => putAway($)} />
         </Box>
       )
     }
@@ -371,14 +371,17 @@ export const register: Register = on => {
     const bar = barWidth(await read($, width), e.props.bodyColumns) - CLOSE_ROOM
 
     return (
-      <Box width="100%" alignItems="center">
+      <Box width="100%" alignItems="center" position="relative">
         <Svg
           source={stage(m, await $.clock.now(), e.props.isWorking, bar)}
           alt={describe(m)}
           width={bar}
           height={SIZE}
         />
-        <Button key="close" label="Hide the meatball" role="dismiss" onPress={() => putAway($)} />
+        {/* Pinned inside the band's corner: the desktop's own dismiss control sits on its edge and clips. */}
+        <Box position="absolute" top={0} right={4}>
+          <Button key="close" label="✕" plain dimColor onPress={() => putAway($)} />
+        </Box>
       </Box>
     )
   })

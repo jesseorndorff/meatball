@@ -20,7 +20,7 @@ test('desktop draws the SVG meatball, the terminal a line of text', async ($, on
   expect(onDesktop).toContain('data-roll')
   expect(onDesktop).toContain('animation-play-state:running')
   expect(onDesktop).not.toContain('isInteractive')
-  expect(onDesktop).toContain('"role":"dismiss"')
+  expect(onDesktop).toContain('"label":"✕"')
 
   const terminal = await $.ui.mount({
     plugin: 'meatball',
