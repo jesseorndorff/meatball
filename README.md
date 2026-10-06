@@ -19,7 +19,7 @@ A pixel-art meatball that lives above the prompt in Claude Code, in the desktop 
 
 ## Install
 
-Needs Claude Code 2.1.288 or newer. In the desktop app he's drawn from the 32×32 SVG; in a terminal he's a 16×16 version painted in colored half-block characters, 16 columns by 8 rows, so he works in Terminal.app, iTerm2 and the rest (he steps aside when the terminal is too short to fit him).
+Needs Claude Code 2.1.288 or newer. In the desktop app he's drawn from the 32×32 SVG. In a terminal he's one line of colored text, a little face rolling across the band: `(•ᴗ•)` rolling, `(O_O)!` waiting on you, `(¬_¬) ⠋` running a command, `(x_x)#` something failed, `\(^ᴗ^)/` done, `(-_-) zZ` asleep, and rounder cheeks, `( •ᴗ• )` then `((•ᴗ•))`, as the context fills.
 
 ```bash
 claude plugin marketplace add jesseorndorff/meatball
@@ -51,9 +51,9 @@ claude plugin install meatball@meatball
 
 - `.claude-plugin/marketplace.json`: the one-plugin marketplace
 - `plugin/hooks/register.tsx`: the mod
-- `plugin/hooks/terminal.ts`: paints the 16×16 sprite into terminal cells
-- `plugin/assets/meatball.svg`, `plugin/assets/meatball-16.svg`: the sprites (desktop, terminal)
-- `plugin/hooks/meatball.ts`, `plugin/hooks/sprite16.ts`: generated from the sprites by `python3 scripts/build-sprites.py`
+- `plugin/hooks/terminal.ts`: his one-line text face for terminals
+- `plugin/assets/meatball.svg`: the sprite; `plugin/hooks/meatball.ts` is generated from it by `python3 scripts/build-sprites.py`
+- `plugin/assets/meatball-16.svg`: a 16×16 version, kept for terminals that draw block characters cleanly
 - `plugin/types/index.d.ts`: the state contract
 
 Run the tests with `claude plugin test plugin` and check the manifests with `claude plugin validate .`

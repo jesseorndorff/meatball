@@ -2,7 +2,7 @@ import { expect, mock, test } from 'claude-code/testing'
 
 const PROPS = { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 100 }
 
-test('desktop draws the SVG meatball, the terminal paints him in cells', async ($, on) => {
+test('desktop draws the SVG meatball, the terminal a line of text', async ($, on) => {
   mock.clock(on, { now: 1_000 })
   on('ui.render', (t, e) => {
     const { Box } = t.ui.resolve(e)
@@ -29,6 +29,5 @@ test('desktop draws the SVG meatball, the terminal paints him in cells', async (
   })
   const onTerminal = JSON.stringify(await terminal.drawn())
   expect(onTerminal).not.toContain('"type":"Svg"')
-  expect(onTerminal).toContain('"type":"Raster"')
-  expect(onTerminal).toContain('"rows":8')
+  expect(onTerminal).toContain('ᴗ')
 })

@@ -1,45 +1,46 @@
 import { expect, test } from 'claude-code/testing'
 
 import { FRESH } from './register'
-import { ROWS, cells, lookOf, paint, place } from './terminal'
+import { WIDTH, face, isMoving, place } from './terminal'
 
-const decode = (b64: string) => new Uint32Array(Uint8Array.fromBase64(b64).buffer)
+const say = (pieces: { text: string }[]) => pieces.map(p => p.text).join('')
 
-test('the small sprite paints a meatball, feet and all', () => {
-  const grid = paint(lookOf(FRESH, false), 0)
-  const lit = grid.filter(c => c >= 0).length
-  expect(lit).toBeGreaterThan(80)
-  expect(lit).toBeLessThan(256)
-})
-
-test('rolling tucks his feet away and turns him', () => {
-  const standing = paint(lookOf(FRESH, false), 0)
-  const rolled = paint(lookOf(FRESH, true), 0.2)
-  expect(Array.from(rolled)).not.toEqual(Array.from(standing))
-})
-
-test('moods change the picture', () => {
-  const plain = Array.from(paint(lookOf(FRESH, false), 0))
-  for (const mood of ['alert', 'busy', 'sleep'] as const) {
-    expect(Array.from(paint(lookOf({ ...FRESH, mood }, false), 0))).not.toEqual(plain)
+test('he is one short line of text', () => {
+  for (const pose of ['none', 'chomp', 'bounce', 'hurt'] as const) {
+    for (const mood of ['none', 'alert', 'busy', 'sleep'] as const) {
+      expect(say(face({ ...FRESH, pose, mood, fill: 'stuffed' }, true, false, 0)).length).toBeLessThanOrEqual(WIDTH)
+    }
   }
-  expect(Array.from(paint(lookOf({ ...FRESH, pose: 'hurt' }, false), 0))).not.toEqual(plain)
 })
 
-test('he packs into half-block cells, 8 rows tall, where he stands', () => {
-  const grid = paint(lookOf(FRESH, false), 0)
-  const words = decode(cells(grid, 40, 10, false))
-  expect(words.length).toBe(40 * ROWS * 3)
-  const glyphAt = (row: number, col: number) => words[(row * 40 + col) * 3]
-  expect(glyphAt(4, 0)).toBe(0x20)
-  const used = new Set<number>()
-  for (let row = 0; row < ROWS; row++) for (let col = 10; col < 26; col++) used.add(glyphAt(row, col))
-  expect(used.has(0x2580)).toBe(true)
+test('each mood has its own face', () => {
+  expect(say(face({ ...FRESH, mood: 'alert' }, false, false, 0))).toBe('(O_O)!')
+  expect(say(face({ ...FRESH, pose: 'hurt' }, false, false, 0))).toContain('x_x')
+  expect(say(face({ ...FRESH, mood: 'sleep' }, false, false, 0))).toContain('z')
+  expect(say(face({ ...FRESH, mood: 'busy' }, false, false, 0))).toContain('¬_¬')
+  expect(say(face({ ...FRESH, pose: 'bounce' }, false, false, 0))).toBe('\\(^ᴗ^)/')
+})
+
+test('he gets rounder as the context fills', () => {
+  expect(say(face(FRESH, false, false, 0))).toBe('(•ᴗ•)')
+  expect(say(face({ ...FRESH, fill: 'full' }, false, false, 0))).toBe('( •ᴗ• )')
+  expect(say(face({ ...FRESH, fill: 'stuffed' }, false, false, 0))).toBe('((•ᴗ•))')
+})
+
+test('rolling kicks up dust behind him', () => {
+  expect(say(face(FRESH, true, false, 0)).startsWith('∙')).toBe(true)
+  expect(say(face(FRESH, true, true, 0)).endsWith('∙')).toBe(true)
+})
+
+test('he only asks for repaints while something moves', () => {
+  expect(isMoving(FRESH, false)).toBe(false)
+  expect(isMoving(FRESH, true)).toBe(true)
+  expect(isMoving({ ...FRESH, mood: 'alert' }, false)).toBe(true)
 })
 
 test('he rolls end to end across the band and turns back', () => {
   expect(place(0, 80)).toEqual({ column: 0, isReturning: false })
-  const lap = ((80 - 16) * 2 * 1000) / 12
-  expect(place(lap / 2, 80).column).toBe(64)
-  expect(place(lap * 0.75, 80)).toEqual({ column: 32, isReturning: true })
+  const lap = ((80 - WIDTH) * 2 * 1000) / 12
+  expect(place(lap / 2, 80).column).toBe(80 - WIDTH)
+  expect(place(lap * 0.75, 80).isReturning).toBe(true)
 })

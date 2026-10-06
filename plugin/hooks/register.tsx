@@ -183,50 +183,26 @@ function isRollingNow(m: Motion, isWorking: boolean) {
   return m.pose === 'none' && m.mood === 'none' && (m.since !== null || isWorking)
 }
 
-/** The terminal band's cells for this moment: where he is on the bar and how he looks. */
-async function terminalFrame($: Pick<EngineInterface, 'state' | 'clock'>, columns: number, isWorking: boolean) {
-  const m = settle(await read($, motion))
-  const now = await $.clock.now()
-  const isRolling = isRollingNow(m, isWorking)
-  const { column, isReturning } = terminal.place(position(m, now), columns)
-  return terminal.cells(terminal.paint(terminal.lookOf(m, isRolling), now / 1000), columns, column, isReturning)
-}
-
-/** How often the terminal band repaints, in milliseconds: about ten frames a second. */
-const TICK_MS = 100
+/** How often the terminal line repaints while he moves, in milliseconds. */
+const TICK_MS = 120
 
 /**
- * The terminal has no CSS animations, so a timer repaints his Raster in place.
- * One timer for the band: a new site or width starts it over.
+ * The terminal has no CSS animations, so while he moves a timer asks for the
+ * band to be drawn again; once he stands still it stops.
  */
-let ticker: { site: string; columns: number; isWorking: boolean; stop: () => void } | null = null
+let ticker: (() => void) | null = null
 
 function stopTicking() {
-  ticker?.stop()
+  ticker?.()
   ticker = null
 }
 
-function keepTicking($: Pick<EngineInterface, 'state' | 'clock' | 'ui'>, site: string, columns: number, isWorking: boolean) {
-  if (ticker && ticker.site === site && ticker.columns === columns) {
-    ticker.isWorking = isWorking
+function keepTicking($: Pick<EngineInterface, 'clock' | 'ui'>) {
+  if (ticker) {
     return
   }
-  stopTicking()
-  const current = { site, columns, isWorking, stop: () => {} }
-  const timer = $.clock.every(TICK_MS, () => {
-    void (async () => {
-      const painted = await $.ui.blit({
-        requestId: site,
-        key: 'meatball',
-        cells: await terminalFrame($, columns, current.isWorking),
-      })
-      if (painted.deny && ticker === current) {
-        stopTicking()
-      }
-    })()
-  })
-  current.stop = () => timer.cancel()
-  ticker = current
+  const timer = $.clock.every(TICK_MS, () => $.ui.invalidate('ui.render'))
+  ticker = () => timer.cancel()
 }
 
 /** What he is doing, for a screen reader. */
@@ -353,23 +329,28 @@ export const register: Register = on => {
       return next(e)
     }
 
-    // The terminal can't draw SVG: he is painted in half-block cells instead.
+    // In a terminal he is one line of text: pixel art there is too big and striped.
     if (e.surface === 'terminal') {
-      if (e.props.maxRows < terminal.ROWS) {
+      const { Box, Text } = $.ui.resolve(e)
+      const m = settle(await read($, motion))
+      const now = await $.clock.now()
+      const isRolling = isRollingNow(m, e.props.isWorking)
+      const { column, isReturning } = terminal.place(position(m, now), e.props.bodyColumns)
+      if (terminal.isMoving(m, isRolling)) {
+        keepTicking($)
+      } else {
         stopTicking()
-        return next(e)
       }
-      const { Raster } = $.ui.resolve(e)
-      const columns = e.props.bodyColumns
-      keepTicking($, e.requestId, columns, e.props.isWorking)
 
       return (
-        <Raster
-          key="meatball"
-          columns={columns}
-          rows={terminal.ROWS}
-          cells={await terminalFrame($, columns, e.props.isWorking)}
-        />
+        <Box>
+          <Text>{' '.repeat(column)}</Text>
+          {terminal.face(m, isRolling, isReturning, now).map((piece, i) => (
+            <Text key={`p${i}`} color={piece.color} bold>
+              {piece.text}
+            </Text>
+          ))}
+        </Box>
       )
     }
 
