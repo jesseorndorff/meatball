@@ -32,6 +32,8 @@ const SPEED = 120
 const PX_PER_COLUMN = 11
 /** Pixels kept free at the band's end for the close button. */
 const CLOSE_ROOM = 48
+/** Where the close button sits from the band content's top-right corner: into the band's padding. */
+const CLOSE_INSET = -16
 const CHOMP_MS = 1200
 const BOUNCE_MS = 1000
 const HURT_MS = 2500
@@ -371,15 +373,18 @@ export const register: Register = on => {
     const bar = barWidth(await read($, width), e.props.bodyColumns) - CLOSE_ROOM
 
     return (
-      <Box width="100%" alignItems="center" position="relative">
+      <Box width="100%" flexGrow={1} alignItems="center" position="relative">
         <Svg
           source={stage(m, await $.clock.now(), e.props.isWorking, bar)}
           alt={describe(m)}
           width={bar}
           height={SIZE}
         />
-        {/* Pinned inside the band's corner: the desktop's own dismiss control sits on its edge and clips. */}
-        <Box position="absolute" top={0} right={4}>
+        {/*
+          Pinned to the band's top-right corner, reaching into its padding: the
+          desktop's own dismiss control sits on the band's edge and clips.
+        */}
+        <Box position="absolute" top={CLOSE_INSET} right={CLOSE_INSET}>
           <Button key="close" label="✕" plain dimColor onPress={() => putAway($)} />
         </Box>
       </Box>
