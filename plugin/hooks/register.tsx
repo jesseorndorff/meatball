@@ -32,8 +32,8 @@ const SPEED = 120
 const PX_PER_COLUMN = 11
 /** Pixels kept free at the band's end for the close button. */
 const CLOSE_ROOM = 48
-/** Where the close button sits from the band content's top-right corner: into the band's padding. */
-const CLOSE_INSET = -16
+/** Where the close button sits from the band content's top-right corner (the band clips anything outside its content). */
+const CLOSE_INSET = 0
 const CHOMP_MS = 1200
 const BOUNCE_MS = 1000
 const HURT_MS = 2500
@@ -381,7 +381,7 @@ export const register: Register = on => {
           height={SIZE}
         />
         {/*
-          Pinned to the band's top-right corner, reaching into its padding: the
+          Pinned to the top-right corner of the band's content: the
           desktop's own dismiss control sits on the band's edge and clips.
         */}
         <Box position="absolute" top={CLOSE_INSET} right={CLOSE_INSET}>
