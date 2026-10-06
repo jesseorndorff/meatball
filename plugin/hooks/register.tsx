@@ -383,9 +383,10 @@ export const register: Register = on => {
       return ran
     }
 
+    // A tool's arguments sit on the event itself: Bash's is `e.command`.
     const command =
-      COMMAND_TOOLS.has(e.tool) && typeof (e.input as { command?: unknown }).command === 'string'
-        ? (e.input as { command: string }).command
+      COMMAND_TOOLS.has(e.tool) && typeof (e as { command?: unknown }).command === 'string'
+        ? (e as { command: string }).command
         : ''
     const activity = COMMAND_TOOLS.has(e.tool) ? activityOf(command) : null
 

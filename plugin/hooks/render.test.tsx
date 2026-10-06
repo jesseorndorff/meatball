@@ -86,7 +86,31 @@ test('a test run: goggles while it runs, then a cheer or a groan', async ($, on)
   const props = { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 100 }
   desktop = await $.ui.mount({ plugin: 'meatball', surface: 'desktop', component: 'AbovePrompt', props })
 
-  await $.tool.call({ tool: 'Bash', input: { command: 'npm test' }, tool_use_id: 't1' })
+  // As a session raises it: Bash's arguments sit on the call itself.
+  await $.tool.call({ tool: 'Bash', command: 'npm test', tool_use_id: 't1' })
   expect(seen).toBe('data-mood="testing"')
   expect(await poseOf(desktop)).toBe('data-mood="pass"')
+})
+
+test('a failing test run groans, even after a permission prompt', async ($, on) => {
+  mock.clock(on, { now: 1_000 })
+  on('ui.render', (t, e) => {
+    const { Box } = t.ui.resolve(e)
+    return <Box />
+  })
+  on('classic.PermissionRequest', () => ({}))
+  let seen: string | undefined
+  let desktop: { drawn: () => Promise<unknown> } | undefined
+  // The prompt comes up inside the call, beneath his hook, and you approve it.
+  on('tool.call', async () => {
+    await $.classic.PermissionRequest({ tool_name: 'Bash', tool_input: { command: 'npm test' } })
+    seen = desktop && (await poseOf(desktop))
+    return { result: { stdout: '', stderr: 'npm error' }, text: 'npm error', isError: true }
+  })
+  const props = { hasSurvey: false, isWorking: true, maxRows: 10, bodyColumns: 100 }
+  desktop = await $.ui.mount({ plugin: 'meatball', surface: 'desktop', component: 'AbovePrompt', props })
+
+  await $.tool.call({ tool: 'Bash', command: 'npm test', tool_use_id: 't2' })
+  expect(seen).toBe('data-mood="alert"')
+  expect(await poseOf(desktop)).toBe('data-mood="fail"')
 })
