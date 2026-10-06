@@ -32,8 +32,8 @@ const SPEED = 120
 const PX_PER_COLUMN = 11
 /** Pixels kept free at the band's end for the close button. */
 const CLOSE_ROOM = 48
-/** Where the close button sits from the band content's top-right corner (the band clips anything outside its content). */
-const CLOSE_INSET = 0
+/** Where the close button sits from the band content's top-right corner: 4px up and right, just short of where the band clips. */
+const CLOSE_INSET = -4
 const CHOMP_MS = 1200
 const BOUNCE_MS = 1000
 const HURT_MS = 2500
