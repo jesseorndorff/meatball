@@ -4,6 +4,8 @@ A pixel-art meatball that lives above the prompt in the Claude Code desktop app 
 
 ![The meatball's poses: rolling, chomping, running a command, something failed, waiting on you, done, asleep, context filling, time to /compact](docs/poses.svg)
 
+<sub>Also as a [GIF](docs/poses.gif) for places that won't play an SVG. Regenerate it with `python3 docs/make-poses-gif.py` after changing the sprite.</sub>
+
 | He… | When |
 |---|---|
 | rolls along the bar | Claude is thinking or reading |
